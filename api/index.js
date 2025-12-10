@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const mercadopago = require('mercadopago');
-require('dotenv').config();
 
 const app = express();
 
@@ -9,42 +8,38 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configura o Mercado Pago (se houver token)
+// Configura o Mercado Pago
 if (process.env.MP_ACCESS_TOKEN) {
   mercadopago.configure({ access_token: process.env.MP_ACCESS_TOKEN });
+} else {
+  console.log("Aviso: MP_ACCESS_TOKEN não configurado.");
 }
 
-// --- BANCO DE DADOS SIMULADO (Memória) ---
-const db = { transactions: new Set() };
-
-// --- ROTA DE TESTE (Para veres no navegador) ---
+// --- ROTA DE TESTE (Para ver se o Render está vivo) ---
 app.get('/', (req, res) => {
-  res.status(200).json({
-    status: 'online',
-    message: 'Servidor Puxa Combos a funcionar corretamente!',
-    time: new Date().toISOString()
-  });
+  res.status(200).send('✅ Backend Puxa Combos está ONLINE no Render!');
 });
 
-// --- ROTA DO WEBHOOK (Para o Mercado Pago) ---
+// --- ROTA DO WEBHOOK ---
 app.post('/api/webhooks/mercadopago', async (req, res) => {
   const { query, body } = req;
   const topic = query.topic || body.type;
   const id = query.id || body.data?.id;
 
-  console.log(`[Webhook] Recebido: ${topic} | ID: ${id}`);
+  console.log(`[Webhook] Topic: ${topic} | ID: ${id}`);
 
+  // Se for pagamento, loga no console (aqui entraria a lógica de salvar no banco)
   if (topic === 'payment' && id) {
-     console.log("--> Pagamento detetado! A processar...");
-     // Aqui processarias a lógica real
-     // Como é Serverless, respondemos rápido para o MP não ficar a tentar de novo
+     console.log("--> Pagamento recebido! ID:", id);
   }
 
-  return res.status(200).json({ success: true });
+  // Responde sempre 200 OK para o Mercado Pago não ficar a tentar de novo
+  res.status(200).send('OK');
 });
 
-// --- OBRIGATÓRIO PARA VERCEL ---
-// Substitui a última linha por isto:
-module.exports = (req, res) => {
-  return app(req, res);
-};
+// --- O SEGREDO PARA O RENDER ---
+// Esta parte liga o servidor na porta que o Render mandar
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Servidor a rodar na porta ${PORT}`);
+});
