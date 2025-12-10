@@ -44,4 +44,7 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 });
 
 // --- OBRIGATÓRIO PARA VERCEL ---
-module.exports = app;
+// Substitui a última linha por isto:
+module.exports = (req, res) => {
+  return app(req, res);
+};
