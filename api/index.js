@@ -9,20 +9,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configura o Mercado Pago (usa token se houver, senão avisa)
+// Configura o Mercado Pago
 if (process.env.MP_ACCESS_TOKEN) {
   mercadopago.configure({ access_token: process.env.MP_ACCESS_TOKEN });
 } else {
-  console.log("Aviso: MP_ACCESS_TOKEN não configurado. A rodar em modo teste.");
+  console.log("Aviso: MP_ACCESS_TOKEN não configurado.");
 }
 
 // --- BANCO DE DADOS SIMULADO (Memória) ---
-// Em "serverless", a memória limpa-se sozinha, mas serve para testar o webhook agora.
 const db = {
   transactions: new Set() 
 };
 
-// --- ROTA 1: TESTE (Para saberes se está vivo) ---
+// --- ROTA 1: TESTE (Health Check) ---
 app.get('/', (req, res) => {
   res.status(200).json({
     status: 'online',
@@ -39,19 +38,16 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 
   console.log(`[Webhook] Recebido: ${topic} | ID: ${id}`);
 
-  // Se não for pagamento, ignora (mas responde 200 OK para o MP não ficar a tentar de novo)
   if (topic !== 'payment') {
     return res.status(200).send('Ignored');
   }
 
   try {
-    // 1. Evita duplicidade
     if (db.transactions.has(id)) {
       return res.status(200).send('Already processed');
     }
 
-    // 2. Tenta buscar detalhes no Mercado Pago
-    let paymentStatus = 'approved'; // Assume aprovado se não tiver token para validar
+    let paymentStatus = 'approved'; 
     let metadata = body.metadata || {}; 
 
     if (process.env.MP_ACCESS_TOKEN && id) {
@@ -60,7 +56,6 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
          const payment = mpResponse.body;
          paymentStatus = payment.status;
          
-         // Tenta ler metadata (às vezes vem em external_reference, às vezes em metadata)
          if (payment.external_reference) {
             try { metadata = JSON.parse(payment.external_reference); } catch(e) {}
          } else if (payment.metadata) {
@@ -71,13 +66,8 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
        }
     }
 
-    // 3. Processa se aprovado
     if (paymentStatus === 'approved') {
         console.log("--> PAGAMENTO APROVADO!");
-        console.log("--> Cliente:", metadata.user_id || 'Desconhecido');
-        console.log("--> Produto:", metadata.product_type || 'Desconhecido');
-        
-        // Marca como processado
         db.transactions.add(id);
     }
 
@@ -89,7 +79,6 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
   }
 });
 
-// --- O SEGREDO DO SUCESSO NA VERCEL ---
-// Esta é a linha que estava a faltar ou a dar erro. 
-// Ela diz à Vercel: "Este é o servidor que tens de rodar".
+// --- O SEGREDO (A correção) ---
+// Esta linha é obrigatória na Vercel
 module.exports = app;
