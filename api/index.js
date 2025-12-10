@@ -15,7 +15,7 @@ if (process.env.MP_ACCESS_TOKEN) {
   console.log("Aviso: MP_ACCESS_TOKEN não configurado.");
 }
 
-// --- ROTA DE TESTE (Para ver se o Render está vivo) ---
+// --- ROTA DE TESTE ---
 app.get('/', (req, res) => {
   res.status(200).send('✅ Backend Puxa Combos está ONLINE no Render!');
 });
@@ -28,17 +28,14 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 
   console.log(`[Webhook] Topic: ${topic} | ID: ${id}`);
 
-  // Se for pagamento, loga no console (aqui entraria a lógica de salvar no banco)
   if (topic === 'payment' && id) {
      console.log("--> Pagamento recebido! ID:", id);
   }
 
-  // Responde sempre 200 OK para o Mercado Pago não ficar a tentar de novo
   res.status(200).send('OK');
 });
 
 // --- O SEGREDO PARA O RENDER ---
-// Esta parte liga o servidor na porta que o Render mandar
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Servidor a rodar na porta ${PORT}`);
