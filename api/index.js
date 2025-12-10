@@ -9,16 +9,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configura o Mercado Pago (usa token se houver, ou modo teste)
+// Configura o Mercado Pago (usa token se houver, senão avisa)
 if (process.env.MP_ACCESS_TOKEN) {
   mercadopago.configure({ access_token: process.env.MP_ACCESS_TOKEN });
+} else {
+  console.log("Aviso: MP_ACCESS_TOKEN não configurado. A rodar em modo teste.");
 }
 
 // --- BANCO DE DADOS SIMULADO (Memória) ---
-// Nota: Em "serverless", a memória apaga rápido. 
-// Para testes rápidos funciona, mas para produção real precisarias de um banco externo.
+// Em "serverless", a memória limpa-se sozinha, mas serve para testar o webhook agora.
 const db = {
-  transactions: new Set() // Evita duplicidade
+  transactions: new Set() 
 };
 
 // --- ROTA 1: TESTE (Para saberes se está vivo) ---
@@ -38,7 +39,7 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 
   console.log(`[Webhook] Recebido: ${topic} | ID: ${id}`);
 
-  // Se não for pagamento, ignora
+  // Se não for pagamento, ignora (mas responde 200 OK para o MP não ficar a tentar de novo)
   if (topic !== 'payment') {
     return res.status(200).send('Ignored');
   }
@@ -51,14 +52,15 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 
     // 2. Tenta buscar detalhes no Mercado Pago
     let paymentStatus = 'approved'; // Assume aprovado se não tiver token para validar
-    let metadata = body.metadata || {}; // Tenta pegar metadata do corpo
+    let metadata = body.metadata || {}; 
 
     if (process.env.MP_ACCESS_TOKEN && id) {
        try {
          const mpResponse = await mercadopago.payment.get(id);
          const payment = mpResponse.body;
          paymentStatus = payment.status;
-         // Tenta ler metadata (external_reference ou metadata direto)
+         
+         // Tenta ler metadata (às vezes vem em external_reference, às vezes em metadata)
          if (payment.external_reference) {
             try { metadata = JSON.parse(payment.external_reference); } catch(e) {}
          } else if (payment.metadata) {
@@ -87,6 +89,7 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
   }
 });
 
-// --- EXPORTAÇÃO CRÍTICA PARA A VERCEL ---
-// Sem esta linha, dá o erro "Invalid export"
+// --- O SEGREDO DO SUCESSO NA VERCEL ---
+// Esta é a linha que estava a faltar ou a dar erro. 
+// Ela diz à Vercel: "Este é o servidor que tens de rodar".
 module.exports = app;
