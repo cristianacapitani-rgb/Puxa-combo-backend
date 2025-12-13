@@ -116,3 +116,35 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => console.log('Listening on', port));
 
 module.exports = app;
+// === PLANO AVULSO R$19,90 → 5 COMBOS (POR EMAIL) ===
+
+async function creditFiveCombosByEmail(email) {
+  if (!email) return;
+
+  // busca usuário pelo email
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, single_combo_credits')
+    .eq('email', email)
+    .single();
+
+  if (error || !user) {
+    console.log('Usuário não encontrado para email:', email);
+    return;
+  }
+
+  const currentCredits = user.single_combo_credits || 0;
+  const newCredits = currentCredits + 5;
+
+  // atualiza créditos
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ single_combo_credits: newCredits })
+    .eq('id', user.id);
+
+  if (updateError) {
+    console.log('Erro ao atualizar créditos:', updateError);
+  } else {
+    console.log(`+5 combos liberados para ${email}`);
+  }
+}
