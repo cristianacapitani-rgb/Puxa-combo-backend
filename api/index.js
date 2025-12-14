@@ -113,3 +113,10 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () =>
   console.log("Servidor rodando na porta", PORT)
 );
+// rotas que já existiam
+
+// webhook mercado pago
+app.post("/api/webhooks/mercadopago", ...)
+
+// 👇 AQUI entra o NOVO endpoint
+app.post("/api/payments/single", ...)
