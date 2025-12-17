@@ -76,4 +76,19 @@ app.post("/api/webhooks/mercadopago", (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Servidor rodando na porta", PORT);
+});// ===== WEBHOOK MERCADO PAGO =====
+app.post("/api/webhooks/mercadopago", async (req, res) => {
+  try {
+    const { type, data } = req.body;
+
+    console.log("Webhook recebido:", type, data);
+
+    // Confirma imediatamente para o Mercado Pago
+    res.status(200).send("OK");
+
+  } catch (error) {
+    console.error("Erro no webhook:", error);
+    res.status(500).send("Erro");
+  }
 });
+
