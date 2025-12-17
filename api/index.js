@@ -7,8 +7,16 @@ app.post("/api/webhooks/mercadopago", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    const payment = await mercadopago.payment.findById(paymentId);
-    const data = payment.body;
+    const payment = await fetch(
+      `https://api.mercadopago.com/v1/payments/${paymentId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+        },
+      }
+    );
+
+    const data = await payment.json();
 
     if (data.status !== "approved") {
       return res.sendStatus(200);
@@ -27,14 +35,14 @@ app.post("/api/webhooks/mercadopago", async (req, res) => {
       ]);
 
     if (error) {
-      console.error("Erro ao salvar pagamento:", error);
+      console.error("Erro Supabase:", error);
       return res.sendStatus(500);
     }
 
-    console.log("✅ Pagamento salvo com sucesso:", data.id);
+    console.log("✅ Pagamento salvo:", data.id);
     res.sendStatus(200);
   } catch (err) {
-    console.error("Erro no webhook:", err);
+    console.error("Erro webhook:", err);
     res.sendStatus(500);
   }
 });
