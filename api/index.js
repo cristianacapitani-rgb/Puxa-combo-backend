@@ -1,8 +1,9 @@
 import mercadopago from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 
+// ================== CONFIGURAÇÕES ==================
 mercadopago.configure({
-  access_token: process.env.MP_ACCESS_TOKEN,
+  access_token: process.env.MERCADOPAGO_ACCESS_TOKEN,
 });
 
 const supabase = createClient(
@@ -10,44 +11,54 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// ================== HANDLER ==================
 export default async function handler(req, res) {
-  // Health check
+  // --------- Health check ---------
   if (req.method === "GET") {
-    return res.status(200).json({ status: "online" });
+    return res.status(200).json({ ok: true });
   }
 
-  // Criar pagamento teste R$1
+  // --------- Webhook Mercado Pago ---------
   if (req.method === "POST") {
     try {
-      const preference = {
-        items: [
-          {
-            title: "Teste Puxa Combo",
-            quantity: 1,
-            unit_price: 1.0,
-          },
-        ],
-        notification_url:
-          "https://puxa-combo-backend.vercel.app/api/webhook",
-        back_urls: {
-          success: "https://google.com",
-          failure: "https://google.com",
-          pending: "https://google.com",
+      const paymentId =
+        req.body?.data?.id || req.query?.["data.id"];
+
+      if (!paymentId) {
+        console.log("Webhook sem paymentId");
+        return res.status(200).send("ok");
+      }
+
+      console.log("🔔 Webhook recebido. Payment ID:", paymentId);
+
+      const payment = await mercadopago.payment.findById(paymentId);
+      const data = payment.body;
+
+      console.log("📦 Status:", data.status);
+
+      const { error } = await supabase.from("payments").insert([
+        {
+          payment_id: data.id.toString(),
+          status: data.status,
+          amount: data.transaction_amount,
+          method: data.payment_method_id,
+          raw: data,
         },
-        auto_return: "approved",
-      };
+      ]);
 
-      const response = await mercadopago.preferences.create(preference);
+      if (error) {
+        console.error("❌ Erro Supabase:", error);
+        return res.status(500).send("Erro ao salvar");
+      }
 
-      return res.status(200).json({
-        checkout_url: response.body.init_point,
-        preference_id: response.body.id,
-      });
+      console.log("✅ Pagamento salvo com sucesso:", data.id);
+      return res.status(200).send("ok");
     } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Erro ao criar pagamento" });
+      console.error("🔥 Erro no webhook:", err);
+      return res.status(500).send("erro");
     }
   }
 
-  return res.status(405).end();
+  // --------- Método inválido ---------
+  return res.status(405).send("Method not allowed");
 }
