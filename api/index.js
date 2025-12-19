@@ -1,32 +1,53 @@
-<!DOCTYPE html>
-<html>
-  <body>
-    <h2>Teste de pagamento</h2>
+import mercadopago from "mercadopago";
+import { createClient } from "@supabase/supabase-js";
 
-    <button onclick="pagar()">Pagar R$ 1,00</button>
+mercadopago.configure({
+  access_token: process.env.MP_ACCESS_TOKEN,
+});
 
-    <script>
-      async function pagar() {
-        const res = await fetch(
-          "https://puxa-combo-backend.vercel.app/api/payments/single",
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+export default async function handler(req, res) {
+  // Health check
+  if (req.method === "GET") {
+    return res.status(200).json({ status: "online" });
+  }
+
+  // Criar pagamento teste R$1
+  if (req.method === "POST") {
+    try {
+      const preference = {
+        items: [
           {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: "teste@puxacombo.com"
-            })
-          }
-        );
+            title: "Teste Puxa Combo",
+            quantity: 1,
+            unit_price: 1.0,
+          },
+        ],
+        notification_url:
+          "https://puxa-combo-backend.vercel.app/api/webhook",
+        back_urls: {
+          success: "https://google.com",
+          failure: "https://google.com",
+          pending: "https://google.com",
+        },
+        auto_return: "approved",
+      };
 
-        const data = await res.json();
-        console.log(data);
+      const response = await mercadopago.preferences.create(preference);
 
-        if (data.checkout_url) {
-          window.location.href = data.checkout_url;
-        } else {
-          alert("Erro ao gerar pagamento");
-        }
-      }
-    </script>
-  </body>
-</html>
+      return res.status(200).json({
+        checkout_url: response.body.init_point,
+        preference_id: response.body.id,
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Erro ao criar pagamento" });
+    }
+  }
+
+  return res.status(405).end();
+}
