@@ -1,4 +1,4 @@
-import mercadopago from "mercadopago";
+ import mercadopago from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 
 mercadopago.configure({
@@ -11,7 +11,6 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  // Health check
   if (req.method === "GET") {
     return res.status(200).json({ ok: true });
   }
@@ -22,39 +21,34 @@ export default async function handler(req, res) {
 
   try {
     const paymentId =
-      req.body?.data?.id ||
-      req.query?.["data.id"];
+      req.body?.data?.id || req.query?.["data.id"];
 
     if (!paymentId) {
-      console.log("Webhook sem paymentId");
       return res.status(200).send("ok");
     }
-
-    console.log("🔔 Webhook recebido. Payment ID:", paymentId);
 
     const payment = await mercadopago.payment.findById(paymentId);
     const data = payment.body;
 
-    console.log("📌 Status:", data.status);
-    console.log("💰 Valor:", data.transaction_amount);
-
     if (data.status !== "approved") {
-      return res.status(200).send("Pagamento não aprovado");
+      return res.status(200).send("not approved");
     }
 
-    // Procura pagamento pendente com esse valor
-    const { data: pendingPayment, error: findError } = await supabase
+    const amount = Number(data.transaction_amount);
+
+    // Busca o pagamento pending mais recente com esse valor
+    const { data: pending, error } = await supabase
       .from("payments")
       .select("*")
-      .eq("amount", data.transaction_amount)
+      .eq("amount", amount)
       .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(1)
       .single();
 
-    if (findError || !pendingPayment) {
-      console.error("❌ Pagamento pendente não encontrado");
-      return res.status(200).send("Pagamento não vinculado");
+    if (error || !pending) {
+      console.error("Pagamento pending não encontrado");
+      return res.status(200).send("pending not found");
     }
 
     // Atualiza pagamento
@@ -62,27 +56,25 @@ export default async function handler(req, res) {
       .from("payments")
       .update({
         status: "approved",
-        payment_id: data.id,
+        payment_id: data.id.toString(),
         method: data.payment_method_id,
         raw: data,
         received_at: new Date(),
       })
-      .eq("id", pendingPayment.id);
+      .eq("id", pending.id);
 
     // Libera créditos
     await supabase
       .from("users")
       .update({
         single_combo_credits:
-          pendingPayment.credits + pendingPayment.single_combo_credits,
+          pending.credits + pending.single_combo_credits,
       })
-      .eq("id", pendingPayment.user_id);
-
-    console.log("✅ Créditos liberados para usuário:", pendingPayment.user_id);
+      .eq("id", pending.user_id);
 
     return res.status(200).send("ok");
   } catch (err) {
-    console.error("🔥 Erro no webhook:", err);
-    return res.status(500).send("erro");
+    console.error("Erro webhook:", err);
+    return res.status(500).send("error");
   }
 }
